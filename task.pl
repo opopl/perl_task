@@ -5,20 +5,24 @@ use Dancer2;
 use LWP;
 use HTTP::Request;
 use JSON::XS qw(decode_json encode_json);
-use Data::Dumper;
 use DBI;
-use FindBin qw($Bin);
-use AnyEvent;
 
+# for getting the location of the script
+use FindBin qw($Bin);
+
+# fields over which searching will be performed
+#   urls are not processed
 my @searchFields = qw(tag author camera);
 
 my $baseUrl = "http://interview.agileengine.com";
-my $imageCache;
 
+# variable for storing the authorization token
 my $authToken;
+
+# SQLITE database handle to be used via DBI
 my $dbh;
 
-# for testing, maximal number of pics
+# for testing purposes, maximal number of pics
 #   to be loaded from the external server upon initialization
 my $numPics;
 my $picNum=0;
@@ -47,11 +51,11 @@ sub makeRequest {
 
     $res = $ua->request($req);
 
-    print Dumper($res->as_string) . "\n";
-
     return $res;
 }
 
+
+# obtain the authorization token from the server
 
 sub updateToken {
     my $res = makeRequest(
@@ -66,6 +70,8 @@ sub updateToken {
     }
 }
 
+# obtain pictures either via page number or a picture ID
+
 my $counter = 0;
 my $nTries = 2;
 
@@ -79,8 +85,10 @@ sub getImages {
     my $res = makeRequest($url,'GET');
 
     my $data = decode_json($res->content);
-    my $status = $data->{'status'};
 
+    # in case authorization attempt has been failed
+    #   keep trying for a specified number of times
+    my $status = $data->{'status'};
     if($status && $status eq 'Unauthorized') {
         updateToken();
         $counter++;
@@ -174,10 +182,16 @@ sub insertPicture {
 
 }
 
-sub updateCache {
-    my ($page,$id,$maxPage,$maxEntries) = @_;
+# fill the cache database from the external server
+# usage: 
+#   updateCache() for loading all pictures
+#   updateCache(undef,2) for loading just 2 pages 
+#   updateCache(1) for loading page 1
 
-    my $data = getImages($page,$id);
+sub updateCache {
+    my ($page,$maxPage) = @_;
+
+    my $data = getImages($page);
     $page ||= $data->{page};
 
     my $pageCount = $data->{pageCount};
@@ -201,9 +215,14 @@ sub updateCache {
 
 
 sub init {
+    # initialize database for caching pictures
     initDatabase() unless $dbh;
+
+    # receive the authorization token
     updateToken() unless $authToken;
-    updateCache() unless $imageCache;
+
+    # fill the cache database from the external server
+    updateCache();
 }
 
 sub searchTerm {
@@ -219,14 +238,19 @@ sub searchTerm {
 
     my $q = qq{SELECT * FROM pictures WHERE $w };
 
+    # execute SQL query
     my $sth = $dbh->prepare($q);
     $sth->execute();
 
     my $data={};
+
+    # retrieve and process results from the executed SQL query
     while(my $row = $sth->fetchrow_hashref){
         my $id = $row->{id};
         my $tag = $row->{tag};
 
+        # delete the tag field since we do not need it
+        #   in our final data
         delete $row->{tag};
 
         $data->{$id} ||= $row;
@@ -247,54 +271,25 @@ sub searchTerm {
     foreach my $id (keys %$data) {
         push @pictures, $data->{$id};
     }
+
+    # return the JSON response
     return encode_json({ 
        'pictures' => \@pictures,
+       # number of pictures 
        'count'    => scalar @pictures
     });
 
 }
 
+# initialize
 init();
 
-#local $SIG{ALRM} = sub {
-    #init();
-    #alarm 1;
-
-#};
-#alarm 1;
-
-#my $w = AnyEvent->timer(
-    #after => 1000, 
-    #interval => 4000, 
-    #cb => sub { 
-        #init();
-    #}
-#); 
-    #
-#get '/pictures' => sub {
-    #my $q = qq{SELECT * FROM pictures};
-    #my $sth = $dbh->prepare($q);
-    #$sth->execute();
-
-    #my @pictures; 
-    #while (my $row = $sth->fetchrow_hashref) {
-        #my $id = $row->{id};
-        #push @pictures, $row;
-    #}
-
-    #return encode_json({ 
-       #'pictures' => \@pictures,
-       #'count'    => scalar @pictures
-    #});
-#};
-    #
-    
-
+# search route
 get '/search/:term' => sub {
     searchTerm();
 };
 
- 
+# run the web-server
 dance;
 
 
