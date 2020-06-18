@@ -6,9 +6,12 @@ use LWP;
 use HTTP::Request;
 use JSON::XS qw(decode_json encode_json);
 use DBI;
+use Data::Dumper;
 
 # for getting the location of the script
-use FindBin qw($Bin);
+use FindBin qw($Script $Bin);
+
+use Getopt::Long qw(GetOptions);
 
 # fields over which searching will be performed
 #   urls are not processed
@@ -26,6 +29,56 @@ my $dbh;
 #   to be loaded from the external server upon initialization
 my $numPics;
 my $picNum=0;
+
+use vars qw(%OPT @OPTSTR $CMDLINE);
+
+sub getArgs {
+    Getopt::Long::Configure(qw(bundling no_getopt_compat no_auto_abbrev no_ignore_case_always));
+    
+    @OPTSTR=( 
+        "help|h=s",
+        "run|r",
+        "maxPage=s",
+        "page=s",
+        "debug",
+    );
+    
+    unless( @ARGV ){ 
+        showHelp();
+        exit 0;
+    }else{
+        $CMDLINE = join(' ',@ARGV);
+        GetOptions(\%OPT,@OPTSTR);
+    }
+}
+
+sub showHelp {
+    my $s = qq{
+
+    PICTURE STORAGE RESTFUL API 
+
+    USAGE
+        $Script OPTIONS
+    OPTIONS
+        -h --help show help
+        -r --run  the script
+
+        -d --debug  enable debugging
+
+        --maxPage INT 
+        --page INT 
+
+    EXAMPLES
+        $Script -r 
+            simply run the app with loading pictures all at once
+
+        $Script -r --maxPage 2
+        $Script -r --page 1
+
+    };
+
+    print $s . "\n";
+}
 
 # for making HTTP requests
 
@@ -51,9 +104,24 @@ sub makeRequest {
     $req->header(%$headers);
     $req->content($data) if $data;
 
+    debug('request:',Dumper($req->as_string));
+
     $res = $ua->request($req);
 
+    debug('response:',Dumper($res->as_string));
+
     return $res;
+}
+
+sub debug {
+    my @msg = @_;
+
+    return unless $OPT{debug};
+
+    for(@msg){
+        print $_ . "\n";
+    }
+
 }
 
 
@@ -77,7 +145,7 @@ sub updateToken {
 my $counter = 0;
 my $nTries = 2;
 
-sub getImages {
+sub getPicsServer {
     my ($page,$id) = @_;
 
     my $url = $baseUrl . '/images';
@@ -96,10 +164,10 @@ sub getImages {
         $counter++;
 
         if ($counter == $nTries + 1) {
-            warn "maximal number of tries for getImages\n";
+            warn "maximal number of tries for getPicsServer\n";
             return;
         }
-        return getImages($page,$id);
+        return getPicsServer($page,$id);
     }
 
     return $data;
@@ -139,9 +207,9 @@ sub insertPictureDB {
 
     my $sth;
 
-    #do not insert tags repeatedly
+    # do not insert tags repeatedly
     my $tag = $pic->{tag};
-    my $id = $pic->{id};
+    my $id  = $pic->{id};
 
     $sth = $dbh->prepare(qq{SELECT COUNT(*) FROM pictures WHERE tag = ? AND id = ? });
     $sth->execute($tag, $id);
@@ -157,7 +225,7 @@ sub insertPictureDB {
     $sth->execute(@$pic{@fields});
 }
 
-# insert picture data into the SQLITE database
+# insert picture data with the specific ID into the SQLITE database
 #   the actual database inserting will be performed
 #   in insertPictureDB subroutine
 #   after the 'tags' string has been splitted
@@ -172,9 +240,9 @@ sub insertPicture {
 
     my $id = $pic->{id};
 
-    my $data = getImages(undef,$id);
+    my $data = getPicsServer(undef,$id);
     $pic = { %$pic, %$data } if $data;
-
+    
     my $tagString = $pic->{tags};
     my @tags;
     if ($tagString) {
@@ -204,7 +272,7 @@ sub insertPicture {
 sub updateCache {
     my ($page,$maxPage) = @_;
 
-    my $data = getImages($page);
+    my $data = getPicsServer($page);
     $page ||= $data->{page};
 
     my $pageCount = $data->{pageCount};
@@ -217,8 +285,16 @@ sub updateCache {
         insertPicture($pic);
     }
 
-    if ($page == 1 && $hasMore && $maxPage && $maxPage > 1) {
-        my @pages = ( 2 .. $maxPage );
+    my $loadMore = ( $page == 1 
+            && !$OPT{page} 
+            && $hasMore 
+            && $maxPage 
+            && $maxPage > 1 ) ? 1 : 0;
+
+    my $minPage = $page + 1;
+
+    if ($loadMore) {
+        my @pages = ( $minPage .. $maxPage );
         foreach my $p (@pages) {
             updateCache($p);
         }
@@ -230,20 +306,43 @@ sub updateCache {
 #   and then fill the cache DB with the picture data
 #   from the external values
 
-sub init {
+sub appInit {
+
     # initialize database for caching pictures
     initDatabase() unless $dbh;
 
     # receive the authorization token
     updateToken() unless $authToken;
 
+
     # fill the cache database from the external server
-    updateCache();
+    updateCache(@OPT{qw(page maxPage)});
+}
+
+sub jsonGetPictures {
+    my $q = qq{ SELECT * FROM pictures };
+
+    # execute SQL query
+    my $sth = $dbh->prepare($q);
+    $sth->execute();
+
+    my @pictures;
+
+    while( my $row = $sth->fetchrow_hashref ){
+        push @pictures, $row;
+    }
+
+    # return the JSON response
+    return encode_json({ 
+       'pictures' => \@pictures,
+       # number of pictures 
+       'count'    => scalar @pictures
+    });
 }
 
 # will be called when GET /search/:term is sent
 
-sub searchTerm {
+sub jsonSearchTerm {
     my $term = route_parameters->get('term');
     
     my $w = join(" OR ", 
@@ -299,15 +398,31 @@ sub searchTerm {
 
 }
 
-# initialize
-init();
+sub makeRoutes {
+    get '/pictures' => sub {
+        jsonGetPictures();
+    };
+    
+    # search route
+    get '/search/:term' => sub {
+        jsonSearchTerm();
+    };
+}
 
-# search route
-get '/search/:term' => sub {
-    searchTerm();
-};
+sub appRun {
+    # grab command-line arguments
+    getArgs();
 
-# run the web-server
-dance;
+    # initialize
+    appInit();
 
+    # create routes
+    makeRoutes();
+    
+    # run the web-server
+    dance;
+}
+
+# run the application
+appRun();
 
