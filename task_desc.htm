@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>AgileEngine - Back-End - Image Gallery Search - Test Task</title>
+
+    <link rel="shortcut icon" type="image/x-icon" href="https://agileengine.gitlab.io/interview/test-tasks/beQwwuNFStubgcbH/img/favicon.png">
+
+    <!-- Bootstrap core CSS -->
+    <link href="task_desc_files/bootstrap.css" rel="stylesheet">
+
+    <!-- Custom fonts for this template -->
+    <link href="task_desc_files/font-awesome.css" rel="stylesheet" type="text/css">
+    <link href="task_desc_files/css_002.css" rel="stylesheet" type="text/css">
+    <link href="task_desc_files/css.css" rel="stylesheet" type="text/css">
+
+    <!-- Custom styles for this template -->
+    <link href="task_desc_files/clean-blog.css" rel="stylesheet">
+
+  </head>
+
+  <body>
+    <!-- Page Header -->
+    <header class="masthead">
+      <div class="container">
+        <div class="row">
+          <div class="col-lg-10 col-md-10">
+            <div class="site-heading logo">
+              <img src="task_desc_files/rocket.png" style="width: 5em">
+              <img src="task_desc_files/name.png" style="width: 8em">
+            </div>
+            <div class="site-heading description">
+              <h1>Image gallery Search</h1>
+              <span class="subheading">Back-End Engineer</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-10 col-md-10 mx-auto">
+
+          <h2>
+            Intro
+          </h2>
+          <p>
+            Imagine that you are involved in the development of a large 
+file storage system. Special feature here is storing photos and images. 
+We need to provide our users with the possibility to search stored 
+images based on attribute fields.
+          </p>
+
+          <hr>
+
+          <h2>
+            Requirements
+          </h2>
+          <p>
+            </p><ol>
+              <li>We need to see your own code.</li>
+              <li>
+                The app should load and cache photos from our API endpoint http://interview.agileengine.com
+              </li>
+              <li>
+                Obtain a valid Bearer token with valid API key (don't forget to implement invalid token handler and renewal)
+                <br>
+                <code>POST http://interview.agileengine.com/auth</code>
+                <br>
+                Body:
+                <code>
+                  {
+                    "apiKey": "23567b218376f79d9415"
+                  }
+                </code>
+                <br>
+                Response:
+                <code>
+                  {
+                    "token": "ce09287c97bf310284be3c97619158cfed026004"
+                  }
+                </code>
+              </li>
+              <li>
+                The app should fetch paginated photo feed in JSON format with the following REST API call (GET):
+                <br>
+                <code>GET /images</code>
+                <br>
+                Headers: <code> Authorization: Bearer ce09287c97bf310284be3c97619158cfed026004</code>
+                <br>
+                Following pages can be retrieved by appending ‘page=N’ parameter:
+                <br>
+                <code>GET /images?page=2</code>
+                <br>
+                No redundant REST API calls should be triggered by the app.
+              </li>
+              <li>
+                The app should fetch more photo details (photographer 
+name, better resolution, hashtags) by the following REST API call (GET):
+                <code>GET /images/${id}</code>
+              </li>
+			  <li>
+                The app should fetch the entire load of images 
+information upon initialization and perform cache reload once in a 
+defined (configurable) period of time.
+              </li>
+			  <li>
+                The app should provide a new endpoint: <code>GET /search/${searchTerm}</code>,
+ that will return all the photos with any of the meta fields (author, 
+camera, tags, etc) matching the search term. The info should be fetched 
+from the local cache, not the external API.
+              </li>
+			  <li>
+				You are free to choose the way you maintain local cache (any 
+implementation of the cache, DB, etc). The search algorithm, however, 
+should be implemented by you.
+			  </li>
+              <li>
+                We value code readability and consistency, and usage of modern community best practices and
+                architectural approaches, as well, as functionality correctness. So pay attention to code quality.
+              </li>
+              <li>
+                Target completion time is about 2 hours. We would rather see what you were able to do in 2 hours than a
+                full-blown algorithm you’ve spent days implementing. Note that in addition to quality, time used is also
+                factored into scoring the task.
+              </li>
+             
+            </ol>
+          <p></p>
+
+          <hr>
+
+          <h2>
+            Expected Deliverables
+          </h2>
+          <p>
+            </p><ol>
+              <li>
+                Source code.
+              </li>
+              <li>
+                Readme, with instructions, how to build and run.
+              </li>
+            </ol>
+          <p></p>
+
+          <hr>
+
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+        <div class="row">
+          <div class="col-lg-8 col-md-10 mx-auto">
+            <p class="copyright text-muted">2020 © AgileEngine, LLC</p>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Bootstrap core JavaScript -->
+    <script src="task_desc_files/jquery.js"></script>
+    <script src="task_desc_files/bootstrap.js"></script>
+  
+
+
+</body></html>
