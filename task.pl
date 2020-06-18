@@ -27,6 +27,8 @@ my $dbh;
 my $numPics;
 my $picNum=0;
 
+# for making HTTP requests
+
 sub makeRequest {
     my ($url, $method, $headers, $data) = @_;
 
@@ -103,6 +105,10 @@ sub getImages {
     return $data;
 }
 
+# initialize the SQLITE database by creating table 'pictures'
+#   database file will be stored in the same directory
+#   as the script itself
+
 sub initDatabase(){
     my $dbname = $Bin . '/task.db';
     $dbh = DBI->connect('dbi:SQLite:dbname='.$dbname,
@@ -121,6 +127,8 @@ sub initDatabase(){
     };
     $dbh->do($q);
 }
+
+# insert picture data into the SQLITE database (after splitting tags)
 
 sub insertPictureDB {
     my ($pic) = @_;
@@ -148,6 +156,11 @@ sub insertPictureDB {
     $sth = $dbh->prepare($q);
     $sth->execute(@$pic{@fields});
 }
+
+# insert picture data into the SQLITE database
+#   the actual database inserting will be performed
+#   in insertPictureDB subroutine
+#   after the 'tags' string has been splitted
 
 sub insertPicture {
     my ($pic) = @_;
@@ -213,6 +226,9 @@ sub updateCache {
 
 }
 
+# perform database, authorization token initialization;
+#   and then fill the cache DB with the picture data
+#   from the external values
 
 sub init {
     # initialize database for caching pictures
@@ -224,6 +240,8 @@ sub init {
     # fill the cache database from the external server
     updateCache();
 }
+
+# will be called when GET /search/:term is sent
 
 sub searchTerm {
     my $term = route_parameters->get('term');
